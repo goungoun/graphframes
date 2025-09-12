@@ -1,4 +1,4 @@
-/*
+/* 
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -40,13 +40,29 @@ private[graphframes] object PatternParser extends RegexParsers {
       case src ~ "-" ~ "[" ~ "]" ~ "->" ~ dst => AnonymousEdge(src, dst)
       case _ => throw new GraphFramesUnreachableException()
     }
+  private val varLengthEdge: Parser[List[Edge]] =
+    vertex ~ "-" ~ "[" ~ "*" ~ "[0-9]+".r ~ "]" ~ "->" ~ vertex ^^ {
+      case src ~ "-" ~ "[" ~ "*" ~ num ~ "]" ~ "->" ~ dst => {
+        val hop = num.toInt
+        if (hop > 1) {
+          val midVertices = (1 until hop).map(i => NamedVertex(s"_v$i"))
+          val vertices = src +: midVertices :+ dst
+          vertices.sliding(2).map {
+            case Seq(v1, v2) => AnonymousEdge(v1, v2)
+          }.toList
+        } else {
+          List(AnonymousEdge(src, dst))
+        }
+      }
+      case _ => throw new GraphFramesUnreachableException()
+    }
   private val edge: Parser[Edge] = namedEdge | anonymousEdge
   private val negatedEdge: Parser[Pattern] =
     "!" ~ edge ^^ { case _ ~ e =>
       Negation(e)
     }
   private val pattern: Parser[Pattern] = edge | vertex | negatedEdge
-  val patterns: Parser[List[Pattern]] = repsep(pattern, ";")
+  val patterns: Parser[List[Pattern]] = varLengthEdge | repsep(pattern, ";")
 }
 
 private[graphframes] object Pattern {
@@ -117,7 +133,7 @@ private[graphframes] object Pattern {
             throw new InvalidParseException(
               "Motif finding does not support completely " +
                 "anonymous negated edges !()-[]->().  Users can check for 0 edges in the graph " +
-                "using the edges DataFrame.")
+                "using the edges DataFrame.")           
           case e @ AnonymousEdge(_, _) =>
             addEdge(e)
         }

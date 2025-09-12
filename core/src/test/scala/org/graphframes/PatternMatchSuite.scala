@@ -316,8 +316,19 @@ class PatternMatchSuite extends SparkFunSuite with GraphFrameTestSparkContext {
     compareResultToExpected(fof, Set(Row(1L, 0L, 1L), Row(0L, 1L, 0L), Row(1L, 2L, 3L)))
   }
 
-  /* ========== 1 named vertex grounding a negated term to non-negated terms =============== */
+  test("variable edge pattern") {
+    val pattern = "(u)-[*2]->(v)"
+    val edges = g
+      .find(pattern)
+      .select("u.id", "_v1.id", "v.id")
+      .filter("u.id == 0")
+      .collect()
+      .toSet
 
+    compareResultToExpected(edges, Set(Row(0L, 1L, 2L), Row(0L, 1L, 0L)))
+  }
+
+  /* ========== 1 named vertex grounding a negated term to non-negated terms =============== */
   test("a->b but not b->c") {
     val edges = g.find("(a)-[]->(b); !(b)-[]->(c)")
 
