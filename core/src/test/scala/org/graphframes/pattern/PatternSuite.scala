@@ -17,7 +17,6 @@
 
 package org.graphframes.pattern
 
-import org.graphframes.GraphFramesUnreachableException
 import org.graphframes.InvalidParseException
 import org.graphframes.SparkFunSuite
 
@@ -131,6 +130,31 @@ class PatternSuite extends SparkFunSuite {
     Pattern.parse("(v)<-[*5]-(u)") === Pattern.parse("(u)-[*5]->(v)")
   }
 
+  test("rewrite fixed-length pattern") {
+    assert(Pattern.rewriteFixedLengthPattern("(u)-[*1]->(v)") === "(u)-[]->(v)")
+    assert(Pattern.rewriteFixedLengthPattern("(u)-[*2]->(v)") === "(u)-[]->(_v1);(_v1)-[]->(v)")
+    assert(
+      Pattern.rewriteFixedLengthPattern(
+        "(u)-[*5]->(v)") === "(u)-[]->(_v1);(_v1)-[]->(_v2);(_v2)-[]->(_v3);(_v3)-[]->(_v4);(_v4)-[]->(v)")
+    assert(Pattern.rewriteFixedLengthPattern("(u)-[e*1]->(v)") === "(u)-[_e1]->(v)")
+    assert(
+      Pattern.rewriteFixedLengthPattern("(u)-[e*2]->(v)") === "(u)-[_e1]->(_v1);(_v1)-[_e2]->(v)")
+    assert(
+      Pattern.rewriteFixedLengthPattern(
+        "(u)-[e*5]->(v)") === "(u)-[_e1]->(_v1);(_v1)-[_e2]->(_v2);(_v2)-[_e3]->(_v3);(_v3)-[_e4]->(_v4);(_v4)-[_e5]->(v)")
+  }
+
+  test("rewrite fixed-length pattern with a chain") {
+    assert(Pattern.rewriteFixedLengthPattern(
+      "(u)-[*3]->(v);(v)-[]->(k)") === "(u)-[]->(_v1);(_v1)-[]->(_v2);(_v2)-[]->(v);(v)-[]->(k)")
+    assert(
+      Pattern.rewriteFixedLengthPattern(
+        "(u)-[]->(v);(v)-[*2]->(k)") === "(u)-[]->(v);(v)-[]->(_v1);(_v1)-[]->(k)")
+    assert(
+      Pattern.rewriteFixedLengthPattern(
+        "(u)-[*2]->(v);!(v)-[e]->(k)") === "(u)-[]->(_v1);(_v1)-[]->(v);!(v)-[e]->(k)")
+  }
+
   test("bad parses") {
     withClue("Failed to catch parse error with lone anonymous vertex") {
       intercept[InvalidParseException] {
@@ -219,7 +243,7 @@ class PatternSuite extends SparkFunSuite {
 
   test("unsupported parse on the fixed length patterns") {
     withClue("Failed to catch parse error with graph frame unreachable") {
-      intercept[GraphFramesUnreachableException] {
+      intercept[InvalidParseException] {
         Pattern.parse("(u)-[*0]->(v)")
       }
     }
@@ -227,12 +251,6 @@ class PatternSuite extends SparkFunSuite {
     withClue("Failed to catch parse error with bad motif string") {
       intercept[InvalidParseException] {
         Pattern.parse("(u)-[*]->(v)")
-      }
-    }
-
-    withClue("Failed to catch parse error with chaining quantified length pattern") {
-      intercept[InvalidParseException] {
-        Pattern.parse("(u)-[*2]->(v);(v)-[e]->(w)")
       }
     }
   }
